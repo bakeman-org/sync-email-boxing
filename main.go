@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,6 +50,12 @@ func main() {
 		return
 	}
 
+	// accounts 子命令：列出已配置的邮箱账号
+	if len(os.Args) > 1 && (os.Args[1] == "accounts" || os.Args[1] == "list") {
+		runAccounts()
+		return
+	}
+
 	var extPaths pathsFlag
 	var verbose bool
 	var logPath string
@@ -58,6 +66,7 @@ func main() {
 
 用法:
   sync-email-boxing [flags]          启动收件箱 TUI
+  sync-email-boxing accounts         列出已配置的邮箱账号
   sync-email-boxing view <file.eml>  查看本地 .eml 文件
   sync-email-boxing reset [目标]     清空缓存/配置（默认 all，见 reset -h）
 
@@ -67,7 +76,7 @@ Flags:
 	}
 	flag.Var(&extPaths, "c", "从外部配置文件导入账号（可重复或逗号分隔；兼容 go-sendemail 的 qq/163 格式）")
 	flag.Var(&extPaths, "config", "同 -c")
-	flag.StringVar(&useEmail, "u", "", "启动时切换到指定邮箱账号（需已在配置中）")
+	flag.StringVar(&useEmail, "u", "", "启动时切换到指定账号（邮箱地址或序号 1/2/…，先看 accounts）")
 	flag.StringVar(&useEmail, "user", "", "同 -u")
 	flag.StringVar(&downDir, "o", "", "附件/.eml 下载目录（默认 ~/Downloads/sync-email-boxing）")
 	flag.StringVar(&downDir, "output", "", "同 -o")
@@ -111,9 +120,10 @@ Flags:
 	}
 
 	if useEmail != "" {
-		idx := cfg.IndexOfEmail(useEmail)
-		if idx < 0 {
-			fmt.Fprintf(os.Stderr, "配置中没有账号 %s\n", useEmail)
+		idx, ok := resolveAccount(cfg, useEmail)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "配置中没有账号 %q，可用账号：\n", useEmail)
+			printAccounts(cfg, os.Stderr)
 			os.Exit(1)
 		}
 		cfg.Current = idx
@@ -121,8 +131,8 @@ Flags:
 			fmt.Fprintln(os.Stderr, "保存配置失败:", err)
 			os.Exit(1)
 		}
-		debug.Infof("启动时切换账号 -> %s", useEmail)
-		fmt.Printf("当前账号: %s\n", useEmail)
+		debug.Infof("启动时切换账号 -> %s", cfg.Accounts[idx].Email)
+		fmt.Printf("当前账号: %s\n", cfg.Accounts[idx].Email)
 	}
 
 	for i, a := range cfg.Accounts {
@@ -145,6 +155,51 @@ func currentMark(cur bool) string {
 		return " (当前)"
 	}
 	return ""
+}
+
+// runAccounts 列出已配置账号（不启动 TUI）
+func runAccounts() {
+	if err := debug.Init("", false); err != nil {
+		fmt.Fprintln(os.Stderr, "初始化日志失败:", err)
+		os.Exit(1)
+	}
+	defer debug.Close()
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("配置文件: %s\n", config.Path())
+	if len(cfg.Accounts) == 0 {
+		fmt.Println("（还没有账号：运行 sync-email-boxing 按 a 添加，或用 -c 导入配置文件）")
+		return
+	}
+	printAccounts(cfg, os.Stdout)
+}
+
+// printAccounts 打印账号列表（序号为 1 起始，与 -u 序号一致）
+func printAccounts(cfg *config.Config, w io.Writer) {
+	for i, a := range cfg.Accounts {
+		mark := " "
+		if i == cfg.Current {
+			mark = "●"
+		}
+		fmt.Fprintf(w, "%s %d. %-14s %-28s imap %s:%d\n",
+			mark, i+1, a.Name, a.Email, a.IMAPServer, a.IMAPPort)
+	}
+}
+
+// resolveAccount 解析 -u 参数：纯数字按 1 起始序号，否则按邮箱地址匹配
+func resolveAccount(cfg *config.Config, s string) (int, bool) {
+	if n, err := strconv.Atoi(s); err == nil {
+		if n >= 1 && n <= len(cfg.Accounts) {
+			return n - 1, true
+		}
+		return -1, false
+	}
+	idx := cfg.IndexOfEmail(s)
+	return idx, idx >= 0
 }
 
 // runEMLViewer 启动本地 .eml 文件查看器

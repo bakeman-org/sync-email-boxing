@@ -51,8 +51,23 @@ sync-email-boxing — QQ/163 等邮箱收件箱 TUI
 
 用法:
   sync-email-boxing [flags]          启动收件箱 TUI
+  sync-email-boxing accounts         列出已配置的邮箱账号
   sync-email-boxing view <file.eml>  查看本地 .eml 文件
   sync-email-boxing reset [目标]     清空缓存/配置（默认 all，见 reset -h）
+```
+
+## 列出已配置账号
+
+```bash
+sync-email-boxing accounts
+```
+
+输出（`●` 为当前账号，序号可直接用于 `-u`）：
+
+```
+配置文件: /home/you/.config/sync-email-boxing/config.json
+● 1. QQ工作号       1690544550@qq.com            imap imap.qq.com:993
+  2. 163            me@163.com                   imap imap.163.com:993
 ```
 
 ## 重置（清空缓存 / 配置）
@@ -72,7 +87,7 @@ sync-email-boxing reset -y       # 跳过确认直接执行
 | 参数 | 说明 |
 |------|------|
 | `-c, --config <file>` | 从外部配置文件导入账号（可重复或逗号分隔），并存入长期配置 |
-| `-u, --user <email>` | 启动时切换到指定邮箱账号 |
+| `-u, --user <账号>` | 启动时切换到指定账号（邮箱地址或 1 起始序号，先 `accounts` 查看） |
 | `-o, --output <dir>` | 附件 / `.eml` 下载目录（默认 `~/Downloads/sync-email-boxing`） |
 | `-v, --debug` | 开启调试日志（开发者模式，**默认关闭**，不产生日志文件） |
 | `-log <file>` | 调试日志文件路径（默认 `~/.config/sync-email-boxing/debug.log`，需 `-v` 开启） |
