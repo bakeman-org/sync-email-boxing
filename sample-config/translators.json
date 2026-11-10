@@ -1,0 +1,17 @@
+{
+  "active": "youdao",
+  "target": "zh-CN",
+  "providers": {
+    "youdao": {
+      "type": "youdao",
+      "app_key": "你的有道智云 appKey",
+      "app_secret": "你的有道智云 appSecret"
+    },
+    "deepseek": {
+      "type": "llm",
+      "url": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-chat",
+      "keys": { "api_key": "sk-你的DeepSeek密钥" }
+    }
+  }
+}

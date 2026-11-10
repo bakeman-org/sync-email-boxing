@@ -1,0 +1,32 @@
+{
+  "accounts": [
+    {
+      "name": "your-number@139.com",
+      "email": "your-number@139.com",
+      "auth_code": "你的139邮箱授权码",
+      "smtp_server": "smtp.139.com",
+      "smtp_port": 465,
+      "imap_server": "imap.139.com",
+      "imap_port": 993
+    },
+    {
+      "name": "your-number@qq.com",
+      "email": "your-number@qq.com",
+      "auth_code": "你的QQ邮箱授权码",
+      "smtp_server": "smtp.qq.com",
+      "smtp_port": 465,
+      "imap_server": "imap.qq.com",
+      "imap_port": 993
+    },
+    {
+      "name": "your-name@163.com",
+      "email": "your-name@163.com",
+      "auth_code": "你的163邮箱授权码",
+      "smtp_server": "smtp.163.com",
+      "smtp_port": 465,
+      "imap_server": "imap.163.com",
+      "imap_port": 993
+    }
+  ],
+  "current": 0
+}

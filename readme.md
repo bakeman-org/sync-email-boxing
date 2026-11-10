@@ -9,7 +9,8 @@ youdao and sogou is fine for me even though they translate a little bit wrong.
 
 ## 功能
 
-- **多账号**：添加 / 切换 / 删除账号，配置长期存放在 `~/.config/sync-email-boxing/config.json`（0600 权限保护授权码）
+- **多账号**：添加 / 切换 / 删除账号，配置长期存放在 `~/.config/sync-email-boxing/config.json`（0600 权限保护授权码），
+  完整的配置结构示例见 [sample-config/](sample-config/)
 - **外部配置导入**：`-c` 参数兼容 [go-sendemail](https://github.com/your/go-sendemail) 风格的
   `qq_email_config.json` / `163_email_config.json`（`sender_email/sender_key/smtp_server/smtp_port`），
   只填 SMTP 的会按邮箱域名自动推导 IMAP 服务器

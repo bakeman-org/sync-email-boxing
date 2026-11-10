@@ -4,3 +4,4 @@ sync-email-boxing
 go-fy/
 youdaotrans/
 mstrans/
+!sample-config/*.json
