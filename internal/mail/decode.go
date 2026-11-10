@@ -7,11 +7,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/encoding"
 )
 
 // decoderFor 返回常见中文/西文字符集的解码器

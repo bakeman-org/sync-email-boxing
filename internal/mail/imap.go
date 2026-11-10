@@ -43,9 +43,15 @@ func dial(acct config.Account) (*client.Client, error) {
 	start := time.Now()
 
 	dialer := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
-	c, err := client.DialWithDialerTLS(dialer, addr, &tls.Config{ServerName: acct.IMAPServer})
+	conn, err := dialTLS(dialer, addr, acct.IMAPServer)
 	if err != nil {
 		debug.Errf("IMAP 连接失败 %s (%s): %v", addr, debug.Since(start), err)
+		return nil, fmt.Errorf("连接 IMAP %s 失败: %w", addr, err)
+	}
+	c, err := client.New(conn)
+	if err != nil {
+		conn.Close()
+		debug.Errf("IMAP 握手/问候失败 %s (%s): %v", addr, debug.Since(start), err)
 		return nil, fmt.Errorf("连接 IMAP %s 失败: %w", addr, err)
 	}
 	debug.Infof("IMAP 已连接 %s (%s)，开始登录", addr, debug.Since(start))
@@ -62,6 +68,67 @@ func dial(acct config.Account) (*client.Client, error) {
 		debug.Errf("IMAP ID 失败: %v", err)
 	}
 	return c, nil
+}
+
+// legacyRSASuites 只使用 RSA 密钥交换的 TLS 1.2 套件。
+// 部分国内老邮件网关（如 139/移动 mail.10086.cn）不支持 ECDHE，
+// 而 Go 1.22+ 默认已移除 RSA 密钥交换套件，导致 "tls: handshake failure"。
+var legacyRSASuites = []uint16{
+	tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+}
+
+// dialTLS 建立到 IMAP 服务器的 TLS 连接。
+// 先用默认配置握手；若服务器返回握手失败，则回退到 RSA 密钥交换套件重试。
+func dialTLS(dialer *net.Dialer, addr, serverName string) (net.Conn, error) {
+	cfg := &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12}
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	conn.SetDeadline(time.Now().Add(dialTimeout))
+	tlsConn := tls.Client(conn, cfg)
+	if err := tlsConn.Handshake(); err == nil {
+		conn.SetDeadline(time.Time{})
+		return tlsConn, nil
+	} else if !isHandshakeFailure(err) {
+		conn.Close()
+		return nil, err
+	} else {
+		debug.Infof("TLS 默认握手失败(%v)，回退 RSA 密钥交换套件重试", err)
+	}
+	conn.Close()
+
+	conn, err = dialer.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	conn.SetDeadline(time.Now().Add(dialTimeout))
+	legacy := &tls.Config{
+		ServerName:   serverName,
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS12,
+		CipherSuites: legacyRSASuites,
+	}
+	tlsConn = tls.Client(conn, legacy)
+	if err := tlsConn.Handshake(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	conn.SetDeadline(time.Time{})
+	debug.Infof("TLS 回退握手成功：%s", tls.CipherSuiteName(tlsConn.ConnectionState().CipherSuite))
+	return tlsConn, nil
+}
+
+// isHandshakeFailure 判断是否为服务器拒绝握手的错误
+func isHandshakeFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "handshake failure") || strings.Contains(msg, "no cipher suite supported")
 }
 
 // sendClientID 发送 IMAP ID 命令。网易(163/126)要求客户端在 SELECT 前自报身份，

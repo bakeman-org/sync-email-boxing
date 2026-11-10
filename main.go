@@ -15,6 +15,7 @@ import (
 	"sync-email-boxing/internal/config"
 	"sync-email-boxing/internal/debug"
 	"sync-email-boxing/internal/save"
+	"sync-email-boxing/internal/translate"
 	"sync-email-boxing/internal/ui"
 )
 
@@ -178,7 +179,7 @@ func runAccounts() {
 	printAccounts(cfg, os.Stdout)
 }
 
-// printAccounts 打印账号列表（序号为 1 起始，与 -u 序号一致）
+// printAccounts 打印账号列表（序号 1 起始，与 -u 序号一致）
 func printAccounts(cfg *config.Config, w io.Writer) {
 	for i, a := range cfg.Accounts {
 		mark := " "
@@ -190,7 +191,7 @@ func printAccounts(cfg *config.Config, w io.Writer) {
 	}
 }
 
-// resolveAccount 解析 -u 参数：纯数字按 1 起始序号，否则按邮箱地址匹配
+// resolveAccount 解析 -u：纯数字按 1 起始序号，否则按邮箱地址匹配
 func resolveAccount(cfg *config.Config, s string) (int, bool) {
 	if n, err := strconv.Atoi(s); err == nil {
 		if n >= 1 && n <= len(cfg.Accounts) {
@@ -223,9 +224,10 @@ func runEMLViewer(path string) {
 
 // resetTarget reset 子命令可清理的目标
 type resetTarget struct {
-	name string // 子命令名
-	desc string // 说明
-	path string // 要删除的路径（空串=整个配置目录）
+	name  string   // 子命令名
+	desc  string   // 说明
+	path  string   // 要删除的路径（空串=整个配置目录）
+	extra []string // 一并删除的其他文件
 }
 
 // configBaseDir 配置根目录 ~/.config/sync-email-boxing/
@@ -237,10 +239,10 @@ func configBaseDir() string {
 func runReset(args []string) {
 	base := configBaseDir()
 	targets := []resetTarget{
-		{"cache", "正文/附件缓存", filepath.Join(base, "cache")},
-		{"config", "账号配置（含授权码）", config.Path()},
-		{"log", "调试日志", filepath.Join(base, "debug.log")},
-		{"all", "以上全部 + 整个配置目录", base},
+		{"cache", "正文/附件缓存", filepath.Join(base, "cache"), nil},
+		{"config", "账号配置（含授权码）+ 翻译设置", config.Path(), []string{translate.SettingsPath()}},
+		{"log", "调试日志", filepath.Join(base, "debug.log"), nil},
+		{"all", "以上全部 + 整个配置目录", base, nil},
 	}
 
 	var yes bool
@@ -276,12 +278,17 @@ func runReset(args []string) {
 	}
 
 	// 展示将要删除的内容与大小
-	if _, err := os.Stat(target.path); err != nil {
-		fmt.Printf("%s 不存在，无需清理: %s\n", target.desc, target.path)
+	exists := false
+	for _, p := range append([]string{target.path}, target.extra...) {
+		if _, err := os.Stat(p); err == nil {
+			exists = true
+			fmt.Printf("将删除: %s\n  %s (%s)\n", target.desc, p, humanSize(dirOrFileSize(p)))
+		}
+	}
+	if !exists {
+		fmt.Printf("%s 不存在，无需清理\n", target.desc)
 		return
 	}
-	size := dirOrFileSize(target.path)
-	fmt.Printf("将删除: %s\n  %s (%s)\n", target.desc, target.path, humanSize(size))
 
 	if !yes {
 		fmt.Print("确认删除? [y/N] ")
@@ -296,6 +303,12 @@ func runReset(args []string) {
 	if err := os.RemoveAll(target.path); err != nil {
 		fmt.Fprintln(os.Stderr, "删除失败:", err)
 		os.Exit(1)
+	}
+	for _, p := range target.extra {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintln(os.Stderr, "删除失败:", err)
+			os.Exit(1)
+		}
 	}
 	fmt.Println("已删除。下次启动", filepath.Base(os.Args[0]), "将回到初始状态。")
 }

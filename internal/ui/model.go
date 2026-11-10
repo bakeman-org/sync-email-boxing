@@ -28,27 +28,31 @@ const (
 const inboxLimit = 100
 
 type Model struct {
-	cfg           *config.Config
-	store         *cache.Store
-	mode          mode
-	form          formModel
-	accIdx        int
-	folder        string
-	folders       []mail.Folder
-	folderIdx     int
-	foldersLoad   bool
-	msgs          []mail.Summary
-	cursor        int
-	viewer        viewerModel
-	loading       bool
-	errMsg        string
-	errAt         time.Time // 回显错误时间（超时清除）
-	status        string
-	statusAt      time.Time // 回显成功消息时间（超时清除）
-	syncedAt      time.Time
-	width         int
-	height        int
-	cache         map[uint32]mail.Body
+	cfg         *config.Config
+	store       *cache.Store
+	mode        mode
+	form        formModel
+	accIdx      int
+	folder      string
+	folders     []mail.Folder
+	folderIdx   int
+	foldersLoad bool
+	msgs        []mail.Summary
+	cursor      int
+	viewer      viewerModel
+	loading     bool
+	errMsg      string
+	errAt       time.Time // 回显错误时间（超时清除）
+	status      string
+	statusAt    time.Time // 回显成功消息时间（超时清除）
+	syncedAt    time.Time
+	width       int
+	height      int
+	cache       map[uint32]mail.Body
+
+	searchInput textinput.Model // / 搜索输入框
+	searching   bool            // 正在输入搜索词
+	query       string          // 生效的搜索词（空=不过滤）
 }
 
 func New(cfg *config.Config) Model {
@@ -59,6 +63,9 @@ func New(cfg *config.Config) Model {
 		cache:  map[uint32]mail.Body{},
 	}
 	m.viewer.vp = viewport.New(80, 20)
+	m.searchInput = textinput.New()
+	m.searchInput.Placeholder = "输入即过滤 发件人/主题/日期 · Enter 确认 · Esc 取消"
+	m.searchInput.Prompt = "/"
 	if len(cfg.Accounts) == 0 {
 		m.mode = modeForm
 		m.form = newForm()
@@ -235,6 +242,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				msg.existing, len(msg.paths), strings.Join(msg.paths, ", ")))
 		}
 		return m, m.setStatus(fmt.Sprintf("已保存 %d 个文件: %s", len(msg.paths), strings.Join(msg.paths, ", ")))
+
+	case translateMsg:
+		m.viewer.translating = false
+		if msg.err != nil {
+			return m, m.setError("翻译失败: " + msg.err.Error())
+		}
+		// 正文查看页已切走或正文已变化，丢弃过期译文
+		if !m.viewer.ready || m.viewer.body.Text != msg.text {
+			debug.Infof("忽略过期翻译响应")
+			return m, nil
+		}
+		m.viewer.translation = msg.result
+		m.viewer.transSrc = msg.source
+		m.viewer.transTarget = m.cfg.TranslateTargetWithDefault()
+		m.viewer.transTook = msg.took
+		m.viewer.showTrans = true
+		m.viewer.vp.SetContent(m.viewer.content())
+		m.viewer.vp.GotoBottom()
+		if a := m.account(); a != nil {
+			th := textHash(msg.text, m.viewer.transTarget)
+			_ = m.store.SaveTranslation(a.Email, m.folder, m.viewer.summary.UID,
+				cache.Translation{TextHash: th, Target: m.viewer.transTarget, Source: msg.source, Result: msg.result})
+		}
+		debug.Infof("翻译完成 %s · %d 字 → %d 字，耗时 %s", msg.source,
+			len([]rune(msg.text)), len([]rune(msg.result)), msg.took)
+		note := ""
+		if pref := m.cfg.TranslateSourceWithDefault(); msg.source != pref {
+			note = fmt.Sprintf(" · 首选 %s 失败已回退", pref)
+		}
+		return m, m.setStatus(fmt.Sprintf("翻译完成（%s · %.1fs%s）· t 切回原文 · T 重译",
+			msg.source, msg.took.Seconds(), note))
 
 	case echoTickMsg:
 		if m.echoExpired() {

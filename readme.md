@@ -1,5 +1,9 @@
-# sync-email-boxing
+# TODO
+- this tanslator is over complex, so far, I think
+youdao and sogou is fine for me even though they translate a little bit wrong.
 
+
+# sync-email-boxing(LLM Generated code, if you don't trust llm, don't use)
 基于 [bubbletea](https://github.com/charmbracelet/bubbletea) 的 QQ / 163 等邮箱**收件箱 TUI 客户端**：
 多账号配置、收件箱列表、中文正文阅读、附件下载、剪贴板复制，全程支持调试日志与本地缓存（二次打开不用重新拉取）。
 
@@ -15,6 +19,10 @@
 - **附件**：查看页列出附件名与大小，一键下载解码后的二进制内容
 - **剪贴板**：复制正文、复制网页邮箱链接（粘贴到浏览器打开）；`wl-copy` → `xclip` → `xsel` →
   OSC52 终端回退（SSH 远程也可用）
+- **翻译**：正文查看页按 `t` 把英文/其他语言的邮件正文翻译成中文（目标语言可配置），
+  支持 sogou（默认）/ 有道智云 / 自定义 HTTP API；译文随正文缓存，重复查看不联网
+- **搜索**：收件箱按 `/` 输入关键词（发件人/主题/日期，不分大小写）实时过滤，
+  `Esc` 清除；过滤状态下 ↑/↓、Enter、g/G 都在匹配结果内导航
 - **缓存**：正文、附件、账号均本地缓存，重新打开秒开；`r` 可强制刷新
 - **调试日志**：`-v` 输出连接/登录/拉取耗时等详细日志，默认写入 `~/.config/sync-email-boxing/debug.log`
 
@@ -30,9 +38,15 @@ make build
 ```bash
 ./sync-email-boxing -c ../sync-between-linux-and-mobile/config/qq_email_config.json
 ./sync-email-boxing -c qq_email_config.json,163_email_config.json   # 一次导多个
+./sync-email-boxing -c 139_email_config.json                        # 中国移动 139 邮箱
 ```
 
 > QQ / 163 需先在邮箱网页设置中开启 **IMAP/SMTP 服务**并生成**授权码**（不是登录密码）。
+> 139 邮箱在「设置 → 收发信设置」开启 IMAP/SMTP 后，一般直接用登录密码即可。
+
+139 邮箱的 IMAP 网关（`imap.139.com`）只接受 **RSA 密钥交换**的 TLS 1.2 套件，而 Go 1.22+
+默认已禁用这类套件。程序会自动检测握手失败并回退到 RSA 套件重试（日志里可见
+「TLS 回退握手成功」），无需手动配置。
 
 ## 查看本地 .eml 文件
 
@@ -62,12 +76,12 @@ sync-email-boxing — QQ/163 等邮箱收件箱 TUI
 sync-email-boxing accounts
 ```
 
-输出（`●` 为当前账号，序号可直接用于 `-u`）：
+输出（`●` 为当前账号，序号可直接给 `-u`）：
 
 ```
 配置文件: /home/you/.config/sync-email-boxing/config.json
 ● 1. QQ工作号       1690544550@qq.com            imap imap.qq.com:993
-  2. 163            me@163.com                   imap imap.163.com:993
+  2. 139           13532932349@139.com           imap imap.139.com:993
 ```
 
 ## 重置（清空缓存 / 配置）
@@ -133,10 +147,132 @@ sync-email-boxing reset -y       # 跳过确认直接执行
 | `accounts[].smtp_server` / `smtp_port` | 发信服务器；SMTP 目前未使用，保留供后续扩展 |
 | `accounts[].imap_server` / `imap_port` | 收信服务器（TLS），收件箱功能依赖此项 |
 | `current` | 当前账号在 `accounts` 中的下标 |
+| `translate_target` / `translate_source` | 已废弃，自动迁移到 `translators.json` |
 
-文件不存在或字段缺失时程序自动补默认值：按邮箱域名推导 qq/163/126/gmail 的
-服务器（见 `internal/config/config.go` 的 `DefaultServers`），TUI 表单里填完邮箱
-按 `Tab` 也会自动补全。
+## 翻译设置（translators.json）
+
+翻译配置**不放在 config.json**，单独存 `~/.config/sync-email-boxing/translators.json`，
+加多少翻译源都不会把账号配置撑大。旧版 `config.json` 里的 `translate_*` 字段会在启动时
+自动迁移过来并从 config.json 删除。
+
+```json
+{
+  "active": "youdao",
+  "target": "zh-CN",
+  "providers": {
+    "youdao": {
+      "type": "youdao",
+      "app_key": "你的 appKey",
+      "app_secret": "你的 appSecret"
+    },
+    "my-api": {
+      "type": "http",
+      "url": "https://api.example.com/translate",
+      "method": "POST",
+      "keys": { "api_key": "sk-xxxx" },
+      "headers": { "Authorization": "Bearer {{.Keys.api_key}}" },
+      "body": "{\"text\": \"{{.Text}}\", \"to\": \"{{.Target}}\"}",
+      "result_path": "data.result"
+    }
+  }
+}
+```
+
+- `active`：首选源名，失败自动回退 `sogou`（`sogou` 无需任何密钥，永远可用）
+- `target`：目标语言，默认 `zh-CN`，支持 `en/ja/ko/ru/de/fr/es`
+- `providers.<名字>.type`：`sogou` / `youdao` / `llm` / `http`；不写时按名字推断，其余按 `http`
+- 内置 `youdao` 也可改用 `"keys": {"app_key": "...", "app_secret": "..."}`
+
+### LLM 翻译（NOT test just an idea）
+
+内置 `llm` 类型对接**所有 OpenAI 兼容的 `/chat/completions` 接口**，用大模型翻邮件
+通常比网页逆向 API 更稳、译文更自然。三个字段就够：`url` + `model` + `keys.api_key`。
+
+**DeepSeek：**
+```json
+"deepseek": {
+  "type": "llm",
+  "url": "https://api.deepseek.com/chat/completions",
+  "model": "deepseek-chat",
+  "keys": { "api_key": "sk-xxxx" }
+}
+```
+
+**豆包（火山方舟 Ark）：**
+```json
+"doubao": {
+  "type": "llm",
+  "url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+  "model": "doubao-pro-32k",
+  "keys": { "api_key": "你的 Ark API Key" }
+}
+```
+
+**通义千问（DashScope 兼容模式）：**
+```json
+"qwen": {
+  "type": "llm",
+  "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+  "model": "qwen-plus",
+  "keys": { "api_key": "sk-xxxx" }
+}
+```
+
+本地模型（Ollama 等）同样适用：`"url": "http://localhost:11434/v1/chat/completions"`,
+`"model": "qwen2.5"`, api_key 随便填一个（如 `"ollama"`）。
+
+- 默认系统提示词要求模型只输出译文；可用 `keys.system` 自定义提示词
+- 自动去除模型偶尔输出的 markdown 围栏和引号
+- 配好后 TUI 里按 `S` 即可切换到 LLM 源，`S` 循环所有已配置的源，并写回 translators.json
+
+### 关于密钥（重要）
+
+国内可用的翻译 API 基本都要密钥：有道、百度、腾讯、阿里都需要 `app_key + app_secret`
+（或 `appid + key`），因为服务端要校验请求签名——**只有 sogou 这个网页端点不需要**。
+所以自定义源必须能带凭据并计算签名，这不需要 JS 引擎，模板函数就够了：
+
+| 模板变量 | 含义 |
+|----------|------|
+| `{{.Text}}` | 原文 |
+| `{{.Target}}` / `{{.To}}` | 目标语言码 |
+| `{{.From}}` | 源语言（固定 `auto`） |
+| `{{.Keys.xxx}}` | 该 provider 的 `keys` 里的任意凭据 |
+| `{{.APIKey}}` | 等价 `{{.Keys.api_key}}` |
+| `{{.Salt}}` / `{{.CurTime}}` | 每次请求固定的随机串 / 秒级时间戳（参数与签名共用同一个值） |
+
+| 模板函数 | 用途 |
+|----------|------|
+| `md5` / `sha1` / `sha256` | 十六进制摘要 |
+| `hmacSHA256 <key> <msg>` | HMAC-SHA256（腾讯/阿里系签名常用） |
+| `b64` / `b64url` | Base64 |
+| `upper` / `lower` | 大小写 |
+| `printf` / `randhex` / `now` | 字符串拼接、随机 hex、时间戳 |
+
+`result_path` 是响应 JSON 的提取路径（gjson 语法，如 `trans_result.0.dst`），留空则整个响应当译文。
+
+**例：百度翻译**（`sign = md5(appid + q + salt + key)`，完全不用写代码）：
+
+```json
+"baidu": {
+  "type": "http",
+  "url": "https://fanyi-api.baidu.com/api/trans/vip/translate",
+  "method": "GET",
+  "keys": { "appid": "你的appid", "key": "你的密钥" },
+  "query": {
+    "q": "{{.Text}}",
+    "from": "{{.From}}",
+    "to": "{{.Target}}",
+    "appid": "{{.Keys.appid}}",
+    "salt": "{{.Salt}}",
+    "sign": "{{md5 (printf \"%s%s%s%s\" .Keys.appid .Text .Salt .Keys.key)}}"
+  },
+  "result_path": "trans_result.0.dst"
+}
+```
+
+文件不存在或字段缺失时程序自动补默认值：按邮箱域名推导
+qq/163/126/**139**/gmail 的服务器（见 `internal/config/config.go` 的 `DefaultServers`），
+TUI 表单里填完邮箱按 `Tab` 也会自动补全。
 
 ### 外部导入格式 `-c`
 
@@ -158,10 +294,13 @@ sync-email-boxing reset -y       # 跳过确认直接执行
 ## 按键
 
 ### 收件箱列表
-`↑/↓` 选择 · `Enter` 查看 · `r` 刷新 · `f` 切换文件夹 · `s` 账号列表 · `a` 添加账号 · `L` 日志/缓存信息 · `q` 退出
+`↑/↓` 选择 · `Enter` 查看 · `/` 搜索过滤（输入即过滤，`Esc` 清除） · `r` 刷新 · `f` 切换文件夹 · `s` 账号列表 · `a` 添加账号 · `S` 切换翻译源 · `L` 日志/缓存信息 · `q` 退出
 
 ### 邮件正文
-`↑/↓ PgUp/PgDn` 滚动 · `g/G` 顶/底 · `c` 复制正文 · `y` 复制网页邮箱链接 · `d` 下载附件 · `e` 导出整封 `.eml` · `Esc` 返回
+`↑/↓ PgUp/PgDn` 滚动 · `g/G` 顶/底 · `c` 复制正文 · `t` 翻译/切回原文 · `T` 忽略缓存用当前首选源重译 · `S` 切换翻译源 · `y` 复制网页邮箱链接 · `d` 下载附件 · `e` 导出整封 `.eml` · `Esc` 返回
+
+正文页标题栏常驻显示 `翻译源 <当前首选> → <目标语言>`；译文分隔线也会标明实际使用的源，
+状态栏在首选源失败回退到 sogou 时会明确提示。
 
 ### 账号列表
 `Enter` 切换账号 · `a` 添加 · `d` 删除 · `Esc` 返回
@@ -194,6 +333,7 @@ sync-email-boxing/
     ├── cache/                  # 正文/附件磁盘缓存
     ├── save/                   # 附件与 .eml 导出（文件名清洗、重名处理）
     ├── clipboard/              # wl-copy/xclip/xsel/OSC52 剪贴板
+    ├── translate/              # 邮件正文翻译（sogou / 有道智云 / 自定义 HTTP API）
     ├── debug/                  # 调试日志
     └── ui/                     # bubbletea 各视图（列表/正文/表单/账号/文件夹/.eml 查看器）
 ```
@@ -208,3 +348,10 @@ sync-email-boxing/
 | `~/Downloads/sync-email-boxing/` | 附件与 `.eml` 导出（可用 `-o` 改，不受 `reset` 影响） |
 
 以上 `~/.config/sync-email-boxing` 下的内容都可用 `sync-email-boxing reset` 一键清理。
+
+
+# ref links
+- codebuddy: https://www.codebuddy.cn/
+- youdao translate provider
+- sogou translate provider
+- anyway, thank you all.

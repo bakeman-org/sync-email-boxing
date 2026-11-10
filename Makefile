@@ -51,3 +51,8 @@ uninstall:
 ## clean: 清理构建产物
 clean:
 	rm -rf $(BIN) dist
+
+
+# private target only for myself
+__local_deploy: build
+	cp $(BIN) ~/go/bin/

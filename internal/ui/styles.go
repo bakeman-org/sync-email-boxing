@@ -33,6 +33,9 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color("#f9e2af"))
 
+	searchStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#a6e3a1"))
+
 	selRowStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#11111b")).

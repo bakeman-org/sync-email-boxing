@@ -117,6 +117,45 @@ func (s *Store) SaveBody(email, mailbox string, uid uint32, b mail.Body) error {
 	return nil
 }
 
+// Translation 缓存的译文
+type Translation struct {
+	TextHash string `json:"text_hash"`
+	Target   string `json:"target"`
+	Source   string `json:"source"`
+	Result   string `json:"result"`
+}
+
+// LoadTranslation 读取缓存的译文（按 uid + 正文哈希 + 目标语言）
+func (s *Store) LoadTranslation(email, mailbox string, uid uint32, textHash string) (Translation, bool) {
+	if mailbox == "" {
+		mailbox = mail.DefaultFolder
+	}
+	p := filepath.Join(s.folderDir(email, mailbox), "trans", itoa(uid)+"-"+textHash+".json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return Translation{}, false
+	}
+	var f Translation
+	if err := json.Unmarshal(data, &f); err != nil {
+		return Translation{}, false
+	}
+	debug.Debugf("翻译缓存命中 uid=%d", uid)
+	return f, true
+}
+
+// SaveTranslation 缓存译文
+func (s *Store) SaveTranslation(email, mailbox string, uid uint32, f Translation) error {
+	if mailbox == "" {
+		mailbox = mail.DefaultFolder
+	}
+	p := filepath.Join(s.folderDir(email, mailbox), "trans", itoa(uid)+"-"+f.TextHash+".json")
+	if err := writeJSON(p, f); err != nil {
+		debug.Debugf("写翻译缓存失败: %v", err)
+		return err
+	}
+	return nil
+}
+
 // Clear 清空指定账号缓存
 func (s *Store) Clear(email string) error {
 	debug.Infof("清空缓存 %s", email)

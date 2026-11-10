@@ -29,7 +29,10 @@ type formModel struct {
 }
 
 func newForm() formModel {
-	labels := []struct{ ph string; pw int }{
+	labels := []struct {
+		ph string
+		pw int
+	}{
 		{"昵称（可选）", 24},
 		{"邮箱地址，如 user@qq.com", 32},
 		{"授权码（不是登录密码）", 32},

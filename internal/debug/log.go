@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -71,23 +73,33 @@ func Path() string {
 	return logPath
 }
 
-func output(level, format string, args ...any) {
+func output(level, loc, format string, args ...any) {
 	mu.Lock()
 	defer mu.Unlock()
 	if logger == nil {
 		return
 	}
-	logger.Printf("[%s] %s", level, fmt.Sprintf(format, args...))
+	logger.Printf("[%s] %s %s", level, loc, fmt.Sprintf(format, args...))
 }
 
-// Infof 关键流程日志（开启日志时写入）
-func Infof(format string, args ...any) { output("INFO", format, args...) }
+// callerInfo 模拟 C 的 __FILE__:__LINE__：返回调用处的 "文件名:行号:"。
+// skip 相对 runtime.Caller：0=callerInfo 自身，1=Infof 等包装函数，2=用户调用处
+func callerInfo(skip int) string {
+	_, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return "?:"
+	}
+	return fmt.Sprintf("%s:%d:", path.Base(file), line)
+}
 
-// Errf 错误日志（开启日志时写入）
-func Errf(format string, args ...any) { output("ERROR", format, args...) }
+// Infof 关键流程日志（开启日志时写入，自动带调用处 文件:行号）
+func Infof(format string, args ...any) { output("INFO", callerInfo(2), format, args...) }
 
-// Debugf 调试细节（与 Infof 同级：日志开启即写入）
-func Debugf(format string, args ...any) { output("DEBUG", format, args...) }
+// Errf 错误日志（开启日志时写入，自动带调用处 文件:行号）
+func Errf(format string, args ...any) { output("ERROR", callerInfo(2), format, args...) }
+
+// Debugf 调试细节（与 Infof 同级：日志开启即写入，自动带调用处 文件:行号）
+func Debugf(format string, args ...any) { output("DEBUG", callerInfo(2), format, args...) }
 
 // Since 用于耗时统计，返回毫秒数
 func Since(t time.Time) string {

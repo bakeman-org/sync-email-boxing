@@ -76,9 +76,9 @@ func renderEcho(m Model) string {
 	prefix := helpStyle.Render("[" + echoMode(m) + "]")
 	switch {
 	case m.errMsg != "":
-		return prefix + errStyle.Render(" ✗ " + truncateW(m.errMsg, w-14))
+		return prefix + errStyle.Render(" ✗ "+truncateW(m.errMsg, w-14))
 	case m.status != "":
-		return prefix + statusStyle.Render(" ✓ " + truncateW(m.status, w-14))
+		return prefix + statusStyle.Render(" ✓ "+truncateW(m.status, w-14))
 	default:
 		return prefix + dimStyle.Render(" （就绪）")
 	}
