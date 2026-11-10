@@ -1,3 +1,4 @@
+MAKEFLAGS = -B
 BIN      := sync-email-boxing
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
