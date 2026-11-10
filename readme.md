@@ -1,0 +1,195 @@
+# sync-email-boxing
+
+基于 [bubbletea](https://github.com/charmbracelet/bubbletea) 的 QQ / 163 等邮箱**收件箱 TUI 客户端**：
+多账号配置、收件箱列表、中文正文阅读、附件下载、剪贴板复制，全程支持调试日志与本地缓存（二次打开不用重新拉取）。
+
+## 功能
+
+- **多账号**：添加 / 切换 / 删除账号，配置长期存放在 `~/.config/sync-email-boxing/config.json`（0600 权限保护授权码）
+- **外部配置导入**：`-c` 参数兼容 [go-sendemail](https://github.com/your/go-sendemail) 风格的
+  `qq_email_config.json` / `163_email_config.json`（`sender_email/sender_key/smtp_server/smtp_port`），
+  只填 SMTP 的会按邮箱域名自动推导 IMAP 服务器
+- **收件箱列表**：IMAP TLS 只读连接，拉取最近邮件（新邮件在前），未读加粗 `●`，支持文件夹切换
+- **中文渲染**：RFC2047 encoded-word、GBK/GB2312/GB18030/Big5 字符集、quoted-printable / base64
+  传输编码全部正确解码；纯 HTML 邮件自动剥离标签
+- **附件**：查看页列出附件名与大小，一键下载解码后的二进制内容
+- **剪贴板**：复制正文、复制网页邮箱链接（粘贴到浏览器打开）；`wl-copy` → `xclip` → `xsel` →
+  OSC52 终端回退（SSH 远程也可用）
+- **缓存**：正文、附件、账号均本地缓存，重新打开秒开；`r` 可强制刷新
+- **调试日志**：`-v` 输出连接/登录/拉取耗时等详细日志，默认写入 `~/.config/sync-email-boxing/debug.log`
+
+## 快速开始
+
+```bash
+make build
+./sync-email-boxing    # 首次启动会进入账号添加表单
+```
+
+已有现成配置文件的话，直接导入：
+
+```bash
+./sync-email-boxing -c ../sync-between-linux-and-mobile/config/qq_email_config.json
+./sync-email-boxing -c qq_email_config.json,163_email_config.json   # 一次导多个
+```
+
+> QQ / 163 需先在邮箱网页设置中开启 **IMAP/SMTP 服务**并生成**授权码**（不是登录密码）。
+
+## 查看本地 .eml 文件
+
+```bash
+./sync-email-boxing view 邮件.eml        # 或 sync-email-boxing eml 邮件.eml
+```
+
+独立的 TUI 查看器，同样支持中文解码（RFC2047/GBK/Big5/QP/base64）与附件：
+
+`↑/↓ PgUp/PgDn` 滚动 · `g/G` 顶/底 · `h` 精简/完整头信息切换 · `c` 复制正文 · `f` 复制发件人地址 · `d` 下载附件到 `~/Downloads/sync-email-boxing/eml-view/<文件名>/` · `q` 退出
+
+## 启动参数
+
+```
+sync-email-boxing — QQ/163 等邮箱收件箱 TUI
+
+用法:
+  sync-email-boxing [flags]          启动收件箱 TUI
+  sync-email-boxing view <file.eml>  查看本地 .eml 文件
+  sync-email-boxing reset [目标]     清空缓存/配置（默认 all，见 reset -h）
+```
+
+## 重置（清空缓存 / 配置）
+
+```bash
+sync-email-boxing reset          # 清空整个 ~/.config/sync-email-boxing（配置+缓存+日志），恢复出厂
+sync-email-boxing reset cache    # 只清正文/附件缓存（保留账号，下次重新拉取）
+sync-email-boxing reset config   # 只删账号配置（保留缓存）
+sync-email-boxing reset log      # 只删调试日志
+sync-email-boxing reset -y       # 跳过确认直接执行
+```
+
+不带 `-y` 时会先显示将删除的路径和大小，输入 `y` 确认、其他任意输入取消。
+重置后下次启动回到首次运行状态（进入账号添加表单）。
+
+
+| 参数 | 说明 |
+|------|------|
+| `-c, --config <file>` | 从外部配置文件导入账号（可重复或逗号分隔），并存入长期配置 |
+| `-u, --user <email>` | 启动时切换到指定邮箱账号 |
+| `-o, --output <dir>` | 附件 / `.eml` 下载目录（默认 `~/Downloads/sync-email-boxing`） |
+| `-v, --debug` | 开启调试日志（开发者模式，**默认关闭**，不产生日志文件） |
+| `-log <file>` | 调试日志文件路径（默认 `~/.config/sync-email-boxing/debug.log`，需 `-v` 开启） |
+
+日常使用不需要任何参数；只有排查连接/登录/拉取耗时等问题时才加 `-v` 开发者模式，
+日志（连接、登录、拉取、耗时统计）写入 `debug.log`，界面里按 `L` 也可查看当前日志开关与路径。
+
+## 配置格式
+
+### 长期配置 `~/.config/sync-email-boxing/config.json`（0600）
+
+```json
+{
+  "accounts": [
+    {
+      "name": "QQ 工作邮箱",
+      "email": "1690544550@qq.com",
+      "auth_code": "你的授权码",
+      "smtp_server": "smtp.qq.com",
+      "smtp_port": 465,
+      "imap_server": "imap.qq.com",
+      "imap_port": 993
+    },
+    {
+      "name": "163",
+      "email": "me@163.com",
+      "auth_code": "你的授权码",
+      "smtp_server": "smtp.163.com",
+      "smtp_port": 465,
+      "imap_server": "imap.163.com",
+      "imap_port": 993
+    }
+  ],
+  "current": 0
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `accounts[].name` | 显示昵称，缺省用邮箱地址 |
+| `accounts[].email` | 邮箱地址（唯一标识，去重依据） |
+| `accounts[].auth_code` | SMTP/IMAP 共用的授权码（非登录密码），文件权限 0600 |
+| `accounts[].smtp_server` / `smtp_port` | 发信服务器；SMTP 目前未使用，保留供后续扩展 |
+| `accounts[].imap_server` / `imap_port` | 收信服务器（TLS），收件箱功能依赖此项 |
+| `current` | 当前账号在 `accounts` 中的下标 |
+
+文件不存在或字段缺失时程序自动补默认值：按邮箱域名推导 qq/163/126/gmail 的
+服务器（见 `internal/config/config.go` 的 `DefaultServers`），TUI 表单里填完邮箱
+按 `Tab` 也会自动补全。
+
+### 外部导入格式 `-c`
+
+兼容 go-sendemail 的极简格式（只有 SMTP 时 IMAP 按域名自动推导）：
+
+```json
+{
+  "sender_email": "1690544550@qq.com",
+  "sender_key": "你的授权码",
+  "smtp_server": "smtp.qq.com",
+  "smtp_port": 465
+}
+```
+
+同时兼容上面的完整格式（`email/auth_code/imap_server/...`）。导入规则：
+按 `email` 去重，已存在则覆盖更新（保留自定义昵称），最后导入的账号设为当前账号，
+立即写回长期配置。
+
+## 按键
+
+### 收件箱列表
+`↑/↓` 选择 · `Enter` 查看 · `r` 刷新 · `f` 切换文件夹 · `s` 账号列表 · `a` 添加账号 · `L` 日志/缓存信息 · `q` 退出
+
+### 邮件正文
+`↑/↓ PgUp/PgDn` 滚动 · `g/G` 顶/底 · `c` 复制正文 · `y` 复制网页邮箱链接 · `d` 下载附件 · `e` 导出整封 `.eml` · `Esc` 返回
+
+### 账号列表
+`Enter` 切换账号 · `a` 添加 · `d` 删除 · `Esc` 返回
+
+### 文件夹
+`Enter` 打开 · `r` 刷新 · `Esc` 返回
+
+### 添加账号表单
+`Tab/Shift+Tab` 切换字段 · `Enter` 下一项/保存 · 填完邮箱按 `Tab` 会按域名自动补全 qq/163/126/gmail 的默认服务器
+
+## 构建
+
+```bash
+make build     # 当前平台
+make release   # 交叉编译 linux/darwin/windows 到 dist/
+make test      # 单元测试（中文解码、配置导入等）
+make vet       # go vet
+make install   # 安装到 /usr/local/bin
+```
+
+## 目录
+
+```
+sync-email-boxing/
+├── main.go                     # 入口：启动参数、view 子命令、配置导入、TUI 启动
+├── Makefile
+└── internal/
+    ├── config/                 # 多账号配置 + 外部文件导入 + 网页邮箱链接推导
+    ├── mail/                   # IMAP 拉取、MIME/RFC2047/GBK 解析、附件提取、.eml 解析
+    ├── cache/                  # 正文/附件磁盘缓存
+    ├── save/                   # 附件与 .eml 导出（文件名清洗、重名处理）
+    ├── clipboard/              # wl-copy/xclip/xsel/OSC52 剪贴板
+    ├── debug/                  # 调试日志
+    └── ui/                     # bubbletea 各视图（列表/正文/表单/账号/文件夹/.eml 查看器）
+```
+
+## 数据存放
+
+| 路径 | 内容 |
+|------|------|
+| `~/.config/sync-email-boxing/config.json` | 账号配置（含授权码，0600） |
+| `~/.config/sync-email-boxing/debug.log` | 调试日志（仅 `-v`/`--debug` 开启时产生） |
+| `~/.config/sync-email-boxing/cache/` | 正文/附件缓存 |
+| `~/Downloads/sync-email-boxing/` | 附件与 `.eml` 导出（可用 `-o` 改，不受 `reset` 影响） |
+
+以上 `~/.config/sync-email-boxing` 下的内容都可用 `sync-email-boxing reset` 一键清理。
