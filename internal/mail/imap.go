@@ -7,6 +7,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/emersion/go-imap"
@@ -80,45 +81,65 @@ var legacyRSASuites = []uint16{
 	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 }
 
+// legacyHosts 记录已确认只支持 RSA 密钥交换的服务器，后续连接直接走 legacy，省掉一次失败往返
+var legacyHosts sync.Map
+
 // dialTLS 建立到 IMAP 服务器的 TLS 连接。
-// 先用默认配置握手；若服务器返回握手失败，则回退到 RSA 密钥交换套件重试。
+// 先用默认配置握手；若服务器返回握手失败，则回退到 RSA 密钥交换套件重试，
+// 并把该服务器记入 legacyHosts，下次直接使用 legacy 配置。
 func dialTLS(dialer *net.Dialer, addr, serverName string) (net.Conn, error) {
-	cfg := &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12}
+	_, legacyKnown := legacyHosts.Load(serverName)
+	if legacyKnown {
+		conn, err := handshakeTLS(dialer, addr, legacyTLSConfig(serverName))
+		if err == nil {
+			return conn, nil
+		}
+		// 缓存可能过期（服务器升级了），清掉重新探测
+		legacyHosts.Delete(serverName)
+		debug.Infof("TLS legacy 握手失败(%v)，重新探测默认配置", err)
+	}
+
+	conn, err := handshakeTLS(dialer, addr, &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
+	if err == nil {
+		return conn, nil
+	}
+	if !isHandshakeFailure(err) {
+		return nil, err
+	}
+	debug.Infof("TLS 默认握手失败(%v)，回退 RSA 密钥交换套件重试", err)
+
+	conn, err = handshakeTLS(dialer, addr, legacyTLSConfig(serverName))
+	if err != nil {
+		return nil, err
+	}
+	legacyHosts.Store(serverName, struct{}{})
+	debug.Infof("TLS 回退握手成功：%s（已记忆该服务器）", tls.CipherSuiteName(conn.ConnectionState().CipherSuite))
+	return conn, nil
+}
+
+// legacyTLSConfig 只用 RSA 密钥交换的 TLS 1.2 配置
+func legacyTLSConfig(serverName string) *tls.Config {
+	return &tls.Config{
+		ServerName:   serverName,
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS12,
+		CipherSuites: legacyRSASuites,
+	}
+}
+
+// handshakeTLS 拨号并完成 TLS 握手，成功后清掉握手超时
+func handshakeTLS(dialer *net.Dialer, addr string, cfg *tls.Config) (*tls.Conn, error) {
 	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 	conn.SetDeadline(time.Now().Add(dialTimeout))
 	tlsConn := tls.Client(conn, cfg)
-	if err := tlsConn.Handshake(); err == nil {
-		conn.SetDeadline(time.Time{})
-		return tlsConn, nil
-	} else if !isHandshakeFailure(err) {
-		conn.Close()
-		return nil, err
-	} else {
-		debug.Infof("TLS 默认握手失败(%v)，回退 RSA 密钥交换套件重试", err)
-	}
-	conn.Close()
-
-	conn, err = dialer.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-	conn.SetDeadline(time.Now().Add(dialTimeout))
-	legacy := &tls.Config{
-		ServerName:   serverName,
-		MinVersion:   tls.VersionTLS12,
-		MaxVersion:   tls.VersionTLS12,
-		CipherSuites: legacyRSASuites,
-	}
-	tlsConn = tls.Client(conn, legacy)
 	if err := tlsConn.Handshake(); err != nil {
 		conn.Close()
 		return nil, err
 	}
 	conn.SetDeadline(time.Time{})
-	debug.Infof("TLS 回退握手成功：%s", tls.CipherSuiteName(tlsConn.ConnectionState().CipherSuite))
 	return tlsConn, nil
 }
 
