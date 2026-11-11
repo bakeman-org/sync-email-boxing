@@ -1,0 +1,9 @@
+    {
+      "name": "your-number@189.cn",
+      "email": "your-number@189.cn",
+      "auth_code": "你的天翼邮箱授权码",
+      "smtp_server": "smtp.189.cn",
+      "smtp_port": 465,
+      "imap_server": "imap.189.cn",
+      "imap_port": 993
+    }

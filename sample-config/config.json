@@ -26,6 +26,42 @@
       "smtp_port": 465,
       "imap_server": "imap.163.com",
       "imap_port": 993
+    },
+    {
+      "name": "your-name@126.com",
+      "email": "your-name@126.com",
+      "auth_code": "你的126邮箱授权码",
+      "smtp_server": "smtp.126.com",
+      "smtp_port": 465,
+      "imap_server": "imap.126.com",
+      "imap_port": 993
+    },
+    {
+      "name": "your-number@wo.cn",
+      "email": "your-number@wo.cn",
+      "auth_code": "你的联通邮箱专用密码",
+      "smtp_server": "smtp.wo.cn",
+      "smtp_port": 465,
+      "imap_server": "imap.wo.cn",
+      "imap_port": 993
+    },
+    {
+      "name": "your-name@sina.com",
+      "email": "your-name@sina.com",
+      "auth_code": "你的新浪邮箱授权码",
+      "smtp_server": "smtp.sina.com",
+      "smtp_port": 465,
+      "imap_server": "imap.sina.com",
+      "imap_port": 993
+    },
+    {
+      "name": "your-number@189.cn",
+      "email": "your-number@189.cn",
+      "auth_code": "你的天翼邮箱授权码",
+      "smtp_server": "smtp.189.cn",
+      "smtp_port": 465,
+      "imap_server": "imap.189.cn",
+      "imap_port": 993
     }
   ],
   "current": 0

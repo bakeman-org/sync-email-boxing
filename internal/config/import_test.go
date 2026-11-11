@@ -18,8 +18,8 @@ func writeTemp(t *testing.T, content string) string {
 func TestLoadExternalSendEmailFormat(t *testing.T) {
 	// go-sendemail 仓库的 qq_email_config.json 格式
 	p := writeTemp(t, `{
-  "sender_email": "1690544550@qq.com",
-  "sender_key": "znxogkkkexpbeeaj",
+  "sender_email": "someone@qq.com",
+  "sender_key": "test-qq-key",
   "smtp_server": "smtp.qq.com",
   "smtp_port": 465
 }`)
@@ -27,7 +27,7 @@ func TestLoadExternalSendEmailFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Email != "1690544550@qq.com" || a.AuthCode != "znxogkkkexpbeeaj" {
+	if a.Email != "someone@qq.com" || a.AuthCode != "test-qq-key" {
 		t.Fatalf("解析失败: %+v", a)
 	}
 	if a.IMAPServer != "imap.qq.com" || a.IMAPPort != 993 {
@@ -37,8 +37,8 @@ func TestLoadExternalSendEmailFormat(t *testing.T) {
 
 func TestLoadExternal163(t *testing.T) {
 	p := writeTemp(t, `{
-  "sender_email": "13266263124@163.com",
-  "sender_key": "MCSKFAjeSg4TfvpB",
+  "sender_email": "someone@163.com",
+  "sender_key": "test-163-key",
   "smtp_server": "smtp.163.com",
   "smtp_port": 465
 }`)

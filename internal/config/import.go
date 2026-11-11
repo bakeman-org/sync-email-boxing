@@ -38,6 +38,8 @@ func LoadExternalFile(path string) (Account, error) {
 		a.Email = ext.Email
 		a.AuthCode = ext.AuthCode
 		a.Name = ext.Name
+		a.SMTPServer = ext.SMTPServer
+		a.SMTPPort = ext.SMTPPort
 		a.IMAPServer = ext.IMAPServer
 		a.IMAPPort = ext.IMAPPort
 	} else if ext.SenderEmail != "" {

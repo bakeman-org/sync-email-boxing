@@ -1,0 +1,9 @@
+    {
+      "name": "your-number@wo.cn",
+      "email": "your-number@wo.cn",
+      "auth_code": "你的联通邮箱专用密码",
+      "smtp_server": "smtp.wo.cn",
+      "smtp_port": 465,
+      "imap_server": "imap.wo.cn",
+      "imap_port": 993
+    }

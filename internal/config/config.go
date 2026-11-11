@@ -145,6 +145,12 @@ func DefaultServers(email string) (smtpHost string, smtpPort int, imapHost strin
 		return "smtp.139.com", 465, "imap.139.com", 993
 	case "gmail.com":
 		return "smtp.gmail.com", 465, "imap.gmail.com", 993
+	case "wo.cn":
+		return "smtp.wo.cn", 465, "imap.wo.cn", 993
+	case "sina.com", "sina.cn":
+		return "smtp.sina.com", 465, "imap.sina.com", 993
+	case "189.cn":
+		return "smtp.189.cn", 465, "imap.189.cn", 993
 	default:
 		return "", 465, "", 993
 	}

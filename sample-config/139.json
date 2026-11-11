@@ -1,0 +1,9 @@
+    {
+      "name": "your-number@139.com",
+      "email": "your-number@139.com",
+      "auth_code": "你的139邮箱授权码",
+      "smtp_server": "smtp.139.com",
+      "smtp_port": 465,
+      "imap_server": "imap.139.com",
+      "imap_port": 993
+    }

@@ -42,8 +42,25 @@ make build
 ./sync-email-boxing -c 139_email_config.json                        # 中国移动 139 邮箱
 ```
 
-> QQ / 163 需先在邮箱网页设置中开启 **IMAP/SMTP 服务**并生成**授权码**（不是登录密码）。
+> QQ / 163 / 新浪邮箱需先在网页设置中开启 **IMAP/SMTP 服务**并生成**授权码**（不是登录密码）。
 > 139 邮箱在「设置 → 收发信设置」开启 IMAP/SMTP 后，一般直接用登录密码即可。
+> 联通（wo.cn）用「专用密码」，天翼（189.cn）用「客户端授权码」，均在网页版设置区生成。
+> 完整脱敏示例见 [sample-config/config.json](sample-config/config.json)，覆盖
+> 139 / QQ / 163 / 126 / 联通 wo.cn / 新浪 / 天翼 189.cn。
+
+**内置服务器推导**（配置里不写 `smtp_server`/`imap_server` 时按域名自动填）：
+
+| 域名 | IMAP | SMTP |
+|------|------|------|
+| `qq.com` / `foxmail.com` | `imap.qq.com:993` | `smtp.qq.com:465` |
+| `163.com` / `126.com` | `imap.163.com:993` / `imap.126.com:993` | `smtp.163.com:465` / `smtp.126.com:465` |
+| `139.com` | `imap.139.com:993` | `smtp.139.com:465` |
+| `wo.cn` | `imap.wo.cn:993` | `smtp.wo.cn:465` |
+| `sina.com` / `sina.cn` | `imap.sina.com:993` | `smtp.sina.com:465` |
+| `189.cn` | `imap.189.cn:993` | `smtp.189.cn:465` |
+| `gmail.com` | `imap.gmail.com:993` | `smtp.gmail.com:465` |
+
+> 注意天翼邮箱是 `189.cn` 而不是 `189.com`（后者域名已废弃，登录会报 `domain is disable`）。
 
 139 邮箱的 IMAP 网关（`imap.139.com`）只接受 **RSA 密钥交换**的 TLS 1.2 套件，而 Go 1.22+
 默认已禁用这类套件。程序会自动检测握手失败并回退到 RSA 套件重试（日志里可见

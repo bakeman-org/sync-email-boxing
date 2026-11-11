@@ -1,0 +1,9 @@
+    {
+      "name": "your-name@sina.com",
+      "email": "your-name@sina.com",
+      "auth_code": "你的新浪邮箱授权码",
+      "smtp_server": "smtp.sina.com",
+      "smtp_port": 465,
+      "imap_server": "imap.sina.com",
+      "imap_port": 993
+    }
